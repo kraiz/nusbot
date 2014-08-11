@@ -88,7 +88,7 @@ class _FileListHandler(object):
 
     def iter_changes_since(self, since):
         for change in self.news['changes']:
-            if change['time'] < since:
+            if change['time'] > since:
                 yield change
 
     def is_filelist_update_needed(self, cid):

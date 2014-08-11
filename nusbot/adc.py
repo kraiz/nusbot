@@ -162,7 +162,7 @@ class HubConnection(asyncio.Protocol):
             elif bot_cmd == '$news':
                 delta = '1w' if len(bot_args) == 0 else bot_args[0]
                 try:
-                    since = datetime.now() + convert_to_timedelta(delta)
+                    since = datetime.now() - convert_to_timedelta(delta)
                 except Exception:
                     self.say('Given time isn\'t valid: %s' % delta, sid)
                 else:
