@@ -10,10 +10,10 @@ import (
 	"strings"
 )
 
-type HubState int
+type State int
 
 const (
-	INITIAL HubState = iota
+	INITIAL State = iota
 	PROTOCOL
 	IDENTIFY
 	VERIFY
@@ -77,25 +77,25 @@ func parse(re *regexp.Regexp, str string) map[string]string {
 	return submatchMap
 }
 
-type Bot struct {
-	server string
-	nick   string
+type AdcConnection struct {
+	target string
 	conn   net.Conn
-	state  HubState
+	inf    map[string]string
+	state  State
 	sid    string
 }
 
-func (bot *Bot) Run() {
-	conn, err := net.Dial("tcp", bot.server)
+func (ac *AdcConnection) Run() {
+	conn, err := net.Dial("tcp", ac.target)
 	if err != nil {
-		log.Fatal("Unable to connect to hub %s", bot.server, err)
+		log.Fatal("Unable to connect to: ", ac.target, err)
 	}
-	bot.conn = conn
-	log.Printf("Connected to %s", bot.conn.RemoteAddr())
+	ac.conn = conn
+	log.Printf("Connected to %s", ac.conn.RemoteAddr())
 	defer conn.Close()
 
 	fmt.Fprintln(conn, "HSUP ADBASE ADTIGR")
-	tp := textproto.NewReader(bufio.NewReader(bot.conn))
+	tp := textproto.NewReader(bufio.NewReader(ac.conn))
 	for {
 		line, err := tp.ReadLine()
 		if err != nil {
@@ -103,14 +103,14 @@ func (bot *Bot) Run() {
 		}
 
 		if match := parse(reMsg, line); match != nil {
-			bot.Handle(match["msgType"], match["command"], parse(reArgsMap[match["command"]], match["args"]))
+			ac.Handle(match["msgType"], match["command"], parse(reArgsMap[match["command"]], match["args"]))
 		} else {
 			log.Println("Ignoring unknown command:", line)
 		}
 	}
 }
 
-func (bot *Bot) Handle(msgType string, cmd string, args map[string]string) {
+func (ac *AdcConnection) Handle(msgType string, cmd string, args map[string]string) {
 	switch cmd {
 	case STA:
 		if args["severity"] == "0" {
@@ -119,18 +119,18 @@ func (bot *Bot) Handle(msgType string, cmd string, args map[string]string) {
 			log.Fatalf("Error %s received from hub: %s", args["errorCode"], unescape(args["description"]))
 		}
 	case SUP:
-		if bot.state == INITIAL {
-			bot.state = PROTOCOL
+		if ac.state == INITIAL {
+			ac.state = PROTOCOL
 		}
 	case SID:
-		bot.sid = args["sid"]
-		log.Println("Got Session ID:", bot.sid)
+		ac.sid = args["sid"]
+		log.Println("Got Session ID:", ac.sid)
 	default:
 		fmt.Println(msgType, cmd, args)
 	}
 }
 
 func main() {
-	bot := &Bot{server: "10.10.0.1:1511", nick: "nusbot2"}
-	bot.Run()
+	hub := &AdcConnection{target: "10.10.0.1:1511"}
+	hub.Run()
 }
