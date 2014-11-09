@@ -57,12 +57,12 @@ var (
 		STA: regexp.MustCompile(`^(?P<severity>\d)(?P<errorCode>\d{2})\s(?P<description>.*)$`),
 		SUP: regexp.MustCompile(`^(?P<keyvalues>.*)$`),
 		SID: regexp.MustCompile(`^(?P<sid>\w{4})$`),
-		INF: regexp.MustCompile(`^(?P<keyvalues>.*)$`),
+		INF: regexp.MustCompile(`^((?P<sid>[A-Z]{4})\s)?(?P<keyvalues>.*)$`),
 	}
 	// Some commands contain key value pairs. Thats the regex to parse them.
 	reKeyValueMap = map[string]*regexp.Regexp{
 		SUP: regexp.MustCompile(`(?P<value>AD|RM)(?P<key>\w*)`),
-		INF: regexp.MustCompile(`(?P<key>\w{2})(?P<value>[\w\\s]*)`),
+		INF: regexp.MustCompile(`(?P<key>\w{2})(?P<value>[^ ]*)`),
 	}
 	// Information data send to hub and other clients
 	inf = map[string]string{
@@ -70,11 +70,20 @@ var (
 		"PD": "4MH2IBPDTOP34ELXWSXRY35CSTHDR3PCOMWZPMI",
 		"CT": "1",
 		"NI": "nusbot",
-		"VE": escape("nusbot 0.2.0"),
-		"DE": escape("I'm a bot, type $help into the chat"),
+		"VE": escape("nusbot/0.2.0"),
+		"DE": escape("I am a bot, type #help into the chat"),
 		"SU": "TCP4",
 	}
 )
+
+// Formatted version of the INF map for sending over the wire.
+func formattedInf() string {
+	arr := make([]string, 0, len(inf))
+	for key, value := range inf {
+		arr = append(arr, key+value)
+	}
+	return strings.Join(arr, " ")
+}
 
 // Escapes a text according ADC.
 func escape(text string) string {
@@ -135,6 +144,17 @@ type AdcConnection struct {
 	inf    map[string]string
 	state  State
 	sid    string
+	users  map[string]*AdcConnection
+}
+
+// Creates a new AdcConnection instance.
+func NewAdcConnection(target string) *AdcConnection {
+	return &AdcConnection{
+		target: target,
+		inf:    make(map[string]string),
+		state:  PROTOCOL,
+		users:  make(map[string]*AdcConnection),
+	}
 }
 
 // Entrypoint that starts a connection to the target and it's running the event loop.
@@ -148,7 +168,7 @@ func (ac *AdcConnection) Run() {
 	log.Printf("Connected to %s", ac.conn.RemoteAddr())
 	defer conn.Close()
 
-	fmt.Fprintln(conn, "HSUP ADBASE ADTIGR")
+	fmt.Fprintln(conn, MsgHub+SUP, "ADBASE", "ADTIGR")
 	tp := textproto.NewReader(bufio.NewReader(ac.conn))
 	for {
 		line, err := tp.ReadLine()
@@ -177,18 +197,40 @@ func (ac *AdcConnection) Handle(msgType string, cmd string, args map[string]stri
 			log.Fatalf("Error %s received from hub: %s", args["errorCode"], unescape(args["description"]))
 		}
 	case SUP:
-		if ac.state == INITIAL {
-			ac.state = PROTOCOL
-		}
+		break
 	case SID:
-		ac.sid = args["sid"]
-		log.Println("Got Session ID:", ac.sid)
+		if ac.state == PROTOCOL {
+			ac.state = IDENTIFY
+			ac.sid = args["sid"]
+			log.Println("Got Session ID:", ac.sid)
+		}
+	case INF:
+		// Determine where to store this information
+		var updateTarget map[string]string
+		if msgType == MsgInfo && args["sid"] == "" { // it's a hub
+			updateTarget = ac.inf
+			if ac.state == IDENTIFY {
+				ac.state = NORMAL
+				fmt.Fprintln(ac.conn, MsgBroadcast+INF, ac.sid, formattedInf())
+			}
+		} else { // user inf
+			user, ok := ac.users[args["sid"]]
+			if !ok {
+				user = NewAdcConnection("")
+				ac.users[args["sid"]] = user
+			}
+			updateTarget = user.inf
+		}
+		// Update values
+		for key, value := range keyvalues {
+			updateTarget[key] = value
+		}
 	default:
 		fmt.Println(msgType, cmd, args, keyvalues)
 	}
 }
 
 func main() {
-	hub := &AdcConnection{target: "10.10.0.1:1511"}
+	hub := NewAdcConnection("10.10.0.1:1511")
 	hub.Run()
 }
