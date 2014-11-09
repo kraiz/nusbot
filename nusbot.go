@@ -8,6 +8,7 @@ import (
 	"net/textproto"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Type for differentiate states if ADC connection.
@@ -41,13 +42,17 @@ const (
 	SUP = "SUP"
 	SID = "SID"
 	INF = "INF"
+	MSG = "MSG"
+	SCH = "SCH"
 )
 
 // Intermediate regex items for building the complex reMsg
 const (
 	PatternMsgType = "[" + MsgBroadcast + MsgClient + MsgDirect + MsgEcho + MsgFeature + MsgHub + MsgInfo + MsgUdp + "]"
-	PatternCommand = STA + "|" + SUP + "|" + SID + "|" + INF
+	PatternCommand = STA + "|" + SUP + "|" + SID + "|" + INF + "|" + MSG + "|" + SCH
 )
+
+const HELP = `Available commands: $uptime`
 
 var (
 	// Overvall regex to parse each incoming command.
@@ -58,6 +63,7 @@ var (
 		SUP: regexp.MustCompile(`^(?P<keyvalues>.*)$`),
 		SID: regexp.MustCompile(`^(?P<sid>\w{4})$`),
 		INF: regexp.MustCompile(`^((?P<sid>[A-Z]{4})\s)?(?P<keyvalues>.*)$`),
+		MSG: regexp.MustCompile(`^(?P<sid>[A-Z]{4})\s(?P<text>.*)$`),
 	}
 	// Some commands contain key value pairs. Thats the regex to parse them.
 	reKeyValueMap = map[string]*regexp.Regexp{
@@ -71,7 +77,7 @@ var (
 		"CT": "1",
 		"NI": "nusbot",
 		"VE": escape("nusbot/0.2.0"),
-		"DE": escape("I am a bot, type #help into the chat"),
+		"DE": escape("I am a bot, type $help into the chat"),
 		"SU": "TCP4",
 	}
 )
@@ -98,21 +104,26 @@ func unescape(text string) string {
 // Parses the string str with regex re and returns a map with the named group name as key and
 // the matched value as value.
 func parseArgs(re *regexp.Regexp, str string) map[string]string {
-	submatchMap := make(map[string]string)
+	args := make(map[string]string)
+
+	if re == nil || str == "" {
+		return args
+	}
+
 	submatches := re.FindStringSubmatch(str)
 
 	if submatches == nil {
-		return nil
+		return args
 	}
 
 	for index, name := range re.SubexpNames() {
 		if index == 0 || name == "" {
 			continue
 		}
-		submatchMap[name] = submatches[index]
+		args[name] = submatches[index]
 	}
 
-	return submatchMap
+	return args
 }
 
 // Parses a given string using the given regexp with named groups "key" and "value". A map is returned
@@ -139,21 +150,23 @@ func parseKeyValues(re *regexp.Regexp, str string) map[string]string {
 
 // Data structure with all information about the hub or client ADC connection.
 type AdcConnection struct {
-	target string
-	conn   net.Conn
-	inf    map[string]string
-	state  State
-	sid    string
-	users  map[string]*AdcConnection
+	target  string
+	conn    net.Conn
+	inf     map[string]string
+	state   State
+	sid     string
+	users   map[string]*AdcConnection
+	started time.Time
 }
 
 // Creates a new AdcConnection instance.
 func NewAdcConnection(target string) *AdcConnection {
 	return &AdcConnection{
-		target: target,
-		inf:    make(map[string]string),
-		state:  PROTOCOL,
-		users:  make(map[string]*AdcConnection),
+		target:  target,
+		inf:     make(map[string]string),
+		state:   PROTOCOL,
+		users:   make(map[string]*AdcConnection),
+		started: time.Now(),
 	}
 }
 
@@ -175,12 +188,13 @@ func (ac *AdcConnection) Run() {
 		if err != nil {
 			log.Fatal("Can not read from connection", err)
 		}
-
 		if match := parseArgs(reMsg, line); match != nil {
-			args := parseArgs(reArgsMap[match["command"]], match["args"])
-			keyvalues := parseKeyValues(reKeyValueMap[match["command"]], args["keyvalues"])
+			msgType := match["msgType"]
+			command := match["command"]
+			args := parseArgs(reArgsMap[command], match["args"])
+			keyvalues := parseKeyValues(reKeyValueMap[command], args["keyvalues"])
 			delete(args, "keyvalues")
-			ac.Handle(match["msgType"], match["command"], args, keyvalues)
+			ac.Handle(msgType, command, args, keyvalues)
 		} else {
 			log.Println("Ignoring unknown command:", line)
 		}
@@ -196,8 +210,6 @@ func (ac *AdcConnection) Handle(msgType string, cmd string, args map[string]stri
 		} else {
 			log.Fatalf("Error %s received from hub: %s", args["errorCode"], unescape(args["description"]))
 		}
-	case SUP:
-		break
 	case SID:
 		if ac.state == PROTOCOL {
 			ac.state = IDENTIFY
@@ -225,6 +237,18 @@ func (ac *AdcConnection) Handle(msgType string, cmd string, args map[string]stri
 		for key, value := range keyvalues {
 			updateTarget[key] = value
 		}
+	case MSG:
+		if args["sid"] == ac.sid { // ignore own msgs echoed back
+			break
+		}
+		switch args["text"] {
+		case "$help":
+			fmt.Fprintln(ac.conn, MsgBroadcast+MSG, ac.sid, escape(HELP))
+		case "$uptime":
+			fmt.Fprintln(ac.conn, MsgBroadcast+MSG, ac.sid, escape(fmt.Sprintf("Running since %s", time.Since(ac.started))))
+		}
+	case SUP:
+	case SCH:
 	default:
 		fmt.Println(msgType, cmd, args, keyvalues)
 	}
