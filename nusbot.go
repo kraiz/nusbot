@@ -80,6 +80,8 @@ var (
 		"DE": escape("I am a bot, type $help into the chat"),
 		"SU": "TCP4",
 	}
+	// Ticker for filelist updates
+	filelistRefreshTicker = time.NewTicker(2 * time.Second)
 )
 
 // Formatted version of the INF map for sending over the wire.
@@ -224,6 +226,7 @@ func (ac *AdcConnection) Handle(msgType string, cmd string, args map[string]stri
 			if ac.state == IDENTIFY {
 				ac.state = NORMAL
 				fmt.Fprintln(ac.conn, MsgBroadcast+INF, ac.sid, formattedInf())
+				go ac.RefreshFileLists()
 			}
 		} else { // user inf
 			user, ok := ac.users[args["sid"]]
@@ -238,19 +241,31 @@ func (ac *AdcConnection) Handle(msgType string, cmd string, args map[string]stri
 			updateTarget[key] = value
 		}
 	case MSG:
-		if args["sid"] == ac.sid { // ignore own msgs echoed back
-			break
-		}
 		switch args["text"] {
 		case "$help":
-			fmt.Fprintln(ac.conn, MsgBroadcast+MSG, ac.sid, escape(HELP))
+			ac.ChatSay(HELP)
 		case "$uptime":
-			fmt.Fprintln(ac.conn, MsgBroadcast+MSG, ac.sid, escape(fmt.Sprintf("Running since %s", time.Since(ac.started))))
+			ac.ChatSay("Running since %s", time.Since(ac.started))
 		}
 	case SUP:
 	case SCH:
 	default:
 		fmt.Println(msgType, cmd, args, keyvalues)
+	}
+}
+
+// Sends broadcast message into hub's chat.
+func (ac *AdcConnection) ChatSay(text string, i ...interface{}) {
+	fmt.Fprintln(ac.conn, MsgBroadcast+MSG, ac.sid, escape(fmt.Sprintf(text, i...)))
+}
+
+func (hub *AdcConnection) RefreshFileLists() {
+	for {
+		select {
+		case <-filelistRefreshTicker.C:
+			log.Println("RefreshFileLists")
+			fmt.Println(hub.users)
+		}
 	}
 }
 
