@@ -1,6 +1,7 @@
 package nusbot
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/kraiz/nusbot/adc"
@@ -17,12 +18,16 @@ func NewNusbot(hub string) *Nusbot {
 }
 
 func (nb *Nusbot) Run() {
+	go nb.Handle()
 	nb.hub.Run()
 }
 
 func (nb *Nusbot) Handle() {
 	for {
 		select {
+		case <-nb.hub.CConnected:
+
+			fmt.Println("CONNECTED")
 		case msg := <-nb.hub.CMsg:
 			switch msg {
 			case "$help":
@@ -32,4 +37,8 @@ func (nb *Nusbot) Handle() {
 			}
 		}
 	}
+}
+
+func (nb *Nusbot) newFileList(nick string, filelist string) {
+
 }

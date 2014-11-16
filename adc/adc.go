@@ -79,7 +79,6 @@ var (
 		"SU": "TCP4",
 	}
 	// Ticker for filelist updates
-	filelistRefreshTicker = time.NewTicker(2 * time.Second)
 )
 
 // Formatted version of the INF map for sending over the wire.
@@ -150,25 +149,27 @@ func parseKeyValues(re *regexp.Regexp, str string) map[string]string {
 
 // Data structure with all information about the hub or client ADC connection.
 type AdcConnection struct {
-	target  string
-	conn    net.Conn
-	inf     map[string]string
-	state   State
-	sid     string
-	users   map[string]*AdcConnection
-	Started time.Time
-	CMsg    chan string
+	target     string
+	conn       net.Conn
+	inf        map[string]string
+	state      State
+	sid        string
+	users      map[string]*AdcConnection
+	Started    time.Time
+	CMsg       chan string
+	CConnected chan bool
 }
 
 // Creates a new AdcConnection instance.
 func NewAdcConnection(target string) *AdcConnection {
 	return &AdcConnection{
-		target:  target,
-		inf:     make(map[string]string),
-		state:   PROTOCOL,
-		users:   make(map[string]*AdcConnection),
-		Started: time.Now(),
-		CMsg:    make(chan string),
+		target:     target,
+		inf:        make(map[string]string),
+		state:      PROTOCOL,
+		users:      make(map[string]*AdcConnection),
+		Started:    time.Now(),
+		CMsg:       make(chan string),
+		CConnected: make(chan bool),
 	}
 }
 
@@ -226,7 +227,7 @@ func (ac *AdcConnection) Handle(msgType string, cmd string, args map[string]stri
 			if ac.state == IDENTIFY {
 				ac.state = NORMAL
 				fmt.Fprintln(ac.conn, MsgBroadcast+INF, ac.sid, formattedInf())
-				go ac.RefreshFileLists()
+				ac.CConnected <- true
 			}
 		} else { // user inf
 			user, ok := ac.users[args["sid"]]
@@ -254,14 +255,8 @@ func (ac *AdcConnection) ChatSay(text string, i ...interface{}) {
 	fmt.Fprintln(ac.conn, MsgBroadcast+MSG, ac.sid, escape(fmt.Sprintf(text, i...)))
 }
 
-func (hub *AdcConnection) RefreshFileLists() {
-	for {
-		select {
-		case <-filelistRefreshTicker.C:
-			log.Println("RefreshFileLists")
-			fmt.Println(hub.users)
-		}
-	}
+func (hub *AdcConnection) LoadFileLists() {
+	fmt.Println(hub.users)
 }
 
 func main() {
