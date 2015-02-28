@@ -29,6 +29,7 @@ INF = {
 
 class ClientConnection(asyncio.Protocol):
     COMMANDS, DATASTREAMING = range(2)
+
     def __init__(self):
         self.infos = {}
         self.state = self.COMMANDS
@@ -177,7 +178,7 @@ class HubConnection(asyncio.Protocol):
 
         for sid, info in self.users.items():
             if sid != self.sid and 'ID' in info and info['ID'] not in self.client_connections \
-                and FileListHandler.is_filelist_update_needed(info['ID']):
+                    and FileListHandler.is_filelist_update_needed(info['ID']):
                 # choose random port and token
                 port = random.choice(self.ports)
                 token = ''.join(random.choice(string.ascii_lowercase) for i in range(9))
@@ -219,5 +220,6 @@ class HubConnection(asyncio.Protocol):
                 message = '[Removed][%s]: %s' % (user['NI'], removed.as_message())
                 logger.info(message)
                 self.say(message, sid)
+
 
 HubConnectionInstance = HubConnection()
