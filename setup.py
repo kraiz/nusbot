@@ -1,18 +1,16 @@
-from setuptools import setup, find_packages
+from setuptools import setup
+
+import nusbot
 
 
 setup(
     name='nusbot',
-    version='0.1.5',
+    version=nusbot.__version__,
     description='adc bot annoucing changes in filelist of hub\'s users',
-    url='https://github.com/kraiz/nusbot',
+    url='https://github.com/kraiz/old_nusbot',
     license='MIT',
-    packages=find_packages(),
-    entry_points = {
-        'console_scripts': [
-            'nusbot = nusbot.main:main',
-        ],
-    },
+    packages=['nusbot', 'twisted.plugins'],
+    install_requires=['twisted'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Information Technology',
