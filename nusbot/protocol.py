@@ -44,8 +44,8 @@ class NusbotHubProtocol(ADCClient2HubProtocol):
                         days = 7
                     since = date.today() - timedelta(days=days)
                     self.say('Changes since %s:' % since.isoformat())
-                    for cid, timestamp, diff in self.factory.storage.get_changes(since):
-                        user = self.get_user(cid=cid)
+                    for user_cid, timestamp, diff in self.factory.storage.get_changes(since):
+                        user = self.get_user(cid=user_cid)
                         for added in diff[1]:
                             self.say('Added %s: <%s>%s' % (
                                 timestamp.date().isoformat(), user['nick'], added.as_message()
