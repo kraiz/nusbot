@@ -1,3 +1,4 @@
+from collections import defaultdict
 import random
 import io
 
@@ -28,7 +29,7 @@ class ADCProtocol(LineReceiver):
     }
 
     def __init__(self):
-        pass
+        self.infos = defaultdict(dict)
 
     def connectionMade(self):
         self.send_SUP()
@@ -58,7 +59,7 @@ class ADCProtocol(LineReceiver):
         pass
 
     def handle_INF(self, msg_type, args):
-        self.factory.infos.update(**{
+        self.infos.update(**{
             a[:2]: unescape(a[2:]) for a in args.split()
         })
 
@@ -72,6 +73,7 @@ class ADCClient2HubProtocol(ADCProtocol):
     adc_msg_type = 'H'
 
     def __init__(self):
+        ADCProtocol.__init__(self)
         self.sid = None
 
     def handle_SID(self, msg_type, args):
@@ -85,11 +87,18 @@ class ADCClient2HubProtocol(ADCProtocol):
             })
             user_info = self.factory.user_infos.get(sid, None)
             if user_info:
+                log.msg('User update for %s : %r' % (user_info['NI'], user_info))
                 self.on_user_info(sid, self.factory.user_infos[sid])
         else:
             ADCProtocol.handle_INF(self, msg_type, args)
             self.send_INF()
             self.on_connected()
+
+    def handle_QUI(self, msg_type, args):
+        sid, args = args[:4], args[5:]
+        if sid in self.factory.user_infos:
+            log.msg('User %s has left the hub.' % self.factory.user_infos[sid]['NI'])
+            del self.factory.user_infos[sid]
 
     def handle_MSG(self, msg_type, args):
         sid, txt = args[:4], args[5:]
@@ -109,7 +118,7 @@ class ADCClient2HubProtocol(ADCProtocol):
             [''.join(e) for e in self.adc_inf.items()]
         ))
 
-    # ---
+    # --- upstream api to be consumed be implementor
 
     def get_user(self, sid=None, cid=None, nick=None):
         for user in self.get_all_users():
@@ -137,10 +146,13 @@ class ADCClient2HubProtocol(ADCProtocol):
             self.sendLine(' '.join(line))
 
     def request_client_connection(self, target_sid):
+        log.msg('Requesting client connection to %s' % (self.get_user(sid=target_sid)['nick']))
         token = str(random.randint(100000000, 999999999))
         self.sendLine(' '.join(
             ['DRCM', self.sid, target_sid, 'ADC/1.0', token]
         ))
+
+    # --- abstract methods to implement
 
     def on_connected(self):
         raise NotImplementedError()
@@ -156,6 +168,7 @@ class ADCClient2ClientProtocol(ADCProtocol):
     adc_msg_type = 'C'
 
     def __init__(self):
+        ADCProtocol.__init__(self)
         self.expected_data_length = 0
         self.filelist = None
         self.filelist_size = 0
@@ -183,17 +196,19 @@ class ADCClient2ClientProtocol(ADCProtocol):
         self.filelist_size += len(data)
         if self.filelist_size >= self.expected_data_length:
             self.setLineMode()
-            self.on_filelist(self.factory.infos['ID'], self.filelist.getvalue())
+            self.on_filelist(self.infos['ID'], self.filelist.getvalue())
             self.filelist.close()
 
     def connectionLost(self, reason):
         if self.transport.addr in self.factory.hub_factory.client_connections:
             del self.factory.hub_factory.client_connections[self.transport.addr]
 
-    # ---
+    # --- upstream api to be consumed be implementor
 
     def request_filelist(self):
         self.sendLine('CGET list / 0 -1 RE1')
+
+    # --- abstract methods to implement
 
     def on_connected(self):
         raise NotImplementedError()
