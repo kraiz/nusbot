@@ -45,17 +45,18 @@ class NusbotHubProtocol(ADCClient2HubProtocol):
                     since = date.today() - timedelta(days=days)
                     self.say('Changes since %s:' % since.isoformat())
                     for user_cid, timestamp, diff in self.factory.storage.get_changes(since):
-                        user = self.get_user(cid=user_cid)
-                        for added in diff[1]:
-                            self.say('Added %s: <%s>%s' % (
-                                timestamp.date().isoformat(), user['nick'], added
-                            ))
-                        for deleted in diff[0]:
-                            self.say('Deleted %s: <%s>%s' % (
-                                timestamp.date().isoformat(), user['nick'], deleted
-                            ))
+                        self.announce_changes(user_cid, diff, timestamp=timestamp)
                 else:
                     self.say('Unknown command: %s' % cmd)
+
+    def announce_changes(self, user_cid, diff, timestamp=None):
+        user = self.get_user(cid=user_cid)
+        time = timestamp.date().isoformat() if timestamp else ''
+        for added in diff[1]:
+            self.say('Added %s: <%s>%s' % (time, user['nick'], added))
+        for deleted in diff[0]:
+            self.say('Deleted %s: <%s>%s' % (time, user['nick'], deleted))
+
 
 
 class NusbotFilelistDownloadClientProtocol(ADCClient2ClientProtocol):
@@ -80,6 +81,7 @@ class NusbotFilelistDownloadClientProtocol(ADCClient2ClientProtocol):
             # if there are changes, save them too
             deletions, additions = diff
             if len(deletions) > 0 or len(additions) > 0:
+                self.factory.hub_factory.protocol_instance.announce_changes(cid, diff)
                 storage.save_change(cid, datetime.now(), diff)
 
         # we're done, so close client connection

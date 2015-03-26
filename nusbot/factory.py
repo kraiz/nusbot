@@ -14,6 +14,7 @@ class NusbotHubFactory(ReconnectingClientFactory):
     protocol = NusbotHubProtocol
 
     def __init__(self, scan_interval, storage):
+        self.protocol_instance = None
         self.scan_interval = scan_interval
         self.storage = storage
         self.filelist_download_factory = NusbotFilelistDownloadClientFactory(self)

@@ -76,6 +76,10 @@ class ADCClient2HubProtocol(ADCProtocol):
         ADCProtocol.__init__(self)
         self.sid = None
 
+    def connectionMade(self):
+        ADCProtocol.connectionMade(self)
+        self.factory.protocol_instance = self
+
     def handle_SID(self, msg_type, args):
         self.sid = args
 
