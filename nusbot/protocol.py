@@ -48,11 +48,11 @@ class NusbotHubProtocol(ADCClient2HubProtocol):
                         user = self.get_user(cid=user_cid)
                         for added in diff[1]:
                             self.say('Added %s: <%s>%s' % (
-                                timestamp.date().isoformat(), user['nick'], added.as_message()
+                                timestamp.date().isoformat(), user['nick'], added
                             ))
                         for deleted in diff[0]:
                             self.say('Deleted %s: <%s>%s' % (
-                                timestamp.date().isoformat(), user['nick'], deleted.as_message()
+                                timestamp.date().isoformat(), user['nick'], deleted
                             ))
                 else:
                     self.say('Unknown command: %s' % cmd)

@@ -1,6 +1,6 @@
 import errno
 import os
-import pickle
+import json
 import sqlite3
 
 
@@ -25,8 +25,8 @@ class SqliteStorage(object):
         self.setup_db()
 
     def setup_db(self):
-        self.db.execute('CREATE TABLE IF NOT EXISTS filelists (cid TEXT PRIMARY KEY, timestamp timestamp, data BLOB)')
-        self.db.execute('CREATE TABLE IF NOT EXISTS changes (cid TEXT, timestamp timestamp, diff BLOB)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS filelists (cid TEXT PRIMARY KEY, timestamp timestamp, data TEXT)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS changes (cid TEXT, timestamp timestamp, diff TEXT)')
 
     def save_filelist(self, cid, timestamp, data):
         self.db.execute(
@@ -44,12 +44,12 @@ class SqliteStorage(object):
     def save_change(self, cid, timestamp, diff):
         self.db.execute(
             'INSERT INTO changes(cid, timestamp, diff) VALUES (?, ?, ?)',
-            (cid, timestamp, pickle.dumps(diff))
+            (cid, timestamp, json.dumps(diff))
         )
 
     def get_changes(self, since):
         result = self.db.execute('SELECT cid, timestamp, diff FROM changes WHERE timestamp > ?', (since.isoformat(), ))
         if result is not None:
             for row in result:
-                yield row[0], row[1], pickle.loads(row[2])
+                yield row[0], row[1], json.loads(row[2])
 

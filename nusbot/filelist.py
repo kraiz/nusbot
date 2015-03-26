@@ -76,14 +76,20 @@ def parse_filelist(data):
     return parse(ElementTree.fromstring(data))
 
 
-def diff_filelists(old, new):
-    if None in [old, new] or old != new or old.size == new.size:
-        return set(), set()
-    # must be directory with changed children
-    deletions = old.children - new.children
-    additions = new.children - old.children
-    for old_child, new_child in zip(sorted(old.children - deletions), sorted(new.children - additions)):
-        child_deletions, child_additions = diff_filelists(old_child, new_child)
-        deletions |= child_deletions
-        additions |= child_additions
-    return deletions, additions
+def diff_filelists(old_filelist, new_filelist):
+    def recursive_diff(old, new):
+        if None in [old, new] or old != new or old.size == new.size:
+            return set(), set()
+        # must be directory with changed children
+        deletions = old.children - new.children
+        additions = new.children - old.children
+        for old_child, new_child in zip(sorted(old.children - deletions), sorted(new.children - additions)):
+            child_deletions, child_additions = recursive_diff(old_child, new_child)
+            deletions |= child_deletions
+            additions |= child_additions
+        return deletions, additions
+
+    # format as lists of strings
+    deletions, additions = recursive_diff(old_filelist, new_filelist)
+    format = lambda n: n.as_message()
+    return map(format, deletions), map(format, additions)

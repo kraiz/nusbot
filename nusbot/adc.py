@@ -143,7 +143,7 @@ class ADCClient2HubProtocol(ADCProtocol):
                 line = ['DMSG', self.sid, target_sid]
 
             line.append(escape(txt_line))
-            self.sendLine(' '.join(line))
+            self.sendLine(str(' '.join(line)))
 
     def request_client_connection(self, target_sid):
         log.msg('Requesting client connection to %s' % (self.get_user(sid=target_sid)['nick']))
