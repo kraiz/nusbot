@@ -12,7 +12,7 @@ from nusbot.storage import SqliteStorage
 class Options(usage.Options):
     optParameters = [
         ['host', 'h', '10.10.0.1', 'The hub host/ip to connect to.'],
-        ['port', 'h', 1511, 'The hub port to connect on.', int],
+        ['port', 'p', 1511, 'The hub port to connect on.', int],
         ['db', 'd', '~/.nusbot/nusbot.db', 'Path the to database file.'],
         ['interval', 'i', 60, 'Minutes after which a user filelist will be scanned for changes.', int],
     ]
