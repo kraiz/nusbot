@@ -2,6 +2,8 @@ changes
 -------
 
 * 0.3.1
+  * bugfix: auto-announce changes when found
+  * bugfix: better format for stored changes
   * bugfix: prevent filelist mixup when scanning many users
 
 * 0.3.0
