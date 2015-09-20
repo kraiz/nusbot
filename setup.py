@@ -13,7 +13,7 @@ setup(
     license='MIT',
     packages=['nusbot', 'twisted.plugins'],
     install_requires=['twisted'],
-    long_description=open('README.rst').read() + '\n\n' + open('CHANGELOG.rst').read(),
+    long_description=open('README.rst').read() + '\n\n' + open('CHANGES.rst').read(),
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Information Technology',
