@@ -1,6 +1,9 @@
 changes
 -------
 
+* 0.3.2
+  * bugfix: prevent sqlite3/unicode error
+
 * 0.3.1
   * bugfix: auto-announce changes when found
   * bugfix: better format for stored changes

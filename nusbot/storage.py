@@ -22,6 +22,7 @@ class SqliteStorage(object):
         ensure_directory_exists(os.path.dirname(file_path))
         self.db = sqlite3.connect(file_path, isolation_level=None,
                                   detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        self.text_factory = str
         self.setup_db()
 
     def setup_db(self):
