@@ -1,3 +1,4 @@
+import base64
 import errno
 import os
 import json
@@ -22,7 +23,6 @@ class SqliteStorage(object):
         ensure_directory_exists(os.path.dirname(file_path))
         self.db = sqlite3.connect(file_path, isolation_level=None,
                                   detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        self.text_factory = str
         self.setup_db()
 
     def setup_db(self):
@@ -32,7 +32,7 @@ class SqliteStorage(object):
     def save_filelist(self, cid, timestamp, data):
         self.db.execute(
             'INSERT OR REPLACE INTO filelists(cid, timestamp, data) VALUES (?, ?, ?)',
-            (cid, timestamp, data)
+            (cid, timestamp, base64.b64encode(data))
         )
 
     def get_filelist(self, cid):
@@ -40,7 +40,7 @@ class SqliteStorage(object):
             'SELECT data FROM filelists WHERE cid = ?',
             (cid,)
         ).fetchone()
-        return None if row is None else row[0]
+        return None if row is None else base64.b64decode(row[0])
 
     def save_change(self, cid, timestamp, diff):
         self.db.execute(
