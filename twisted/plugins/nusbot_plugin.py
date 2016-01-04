@@ -10,6 +10,9 @@ from nusbot.storage import SqliteStorage
 
 
 class Options(usage.Options):
+    optFlags = [
+        ['magnet', 'm', 'Add magnet links to file changes']
+    ]
     optParameters = [
         ['host', 'h', '10.10.0.1', 'The hub host/ip to connect to.'],
         ['port', 'p', 1511, 'The hub port to connect on.', int],
@@ -29,6 +32,7 @@ class NusbotServiceMaker(object):
             options['host'], options['port'],
             NusbotHubFactory(
                 scan_interval=options['interval'] * 60,
+                magnet_enabled=options['magnet'],
                 storage=SqliteStorage(options['db'])
             )
         )

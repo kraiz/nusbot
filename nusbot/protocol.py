@@ -75,7 +75,7 @@ class NusbotFilelistDownloadClientProtocol(ADCClient2ClientProtocol):
             # parse and diff
             old_list = parse_filelist(old)
             new_list = parse_filelist(data)
-            diff = diff_filelists(old_list, new_list)
+            diff = diff_filelists(old_list, new_list, magnet_enabled=self.factory.hub_factory.magnet_enabled)
             log.msg('got filelist of %s and with deletions/additions:' % cid, diff)
 
             # if there are changes, save them too

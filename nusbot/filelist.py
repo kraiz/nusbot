@@ -1,3 +1,4 @@
+import urllib
 from xml.etree import ElementTree
 
 
@@ -18,10 +19,10 @@ class Node(object):
         if self.parent is None:
             return ''
         else:
-            return '%s/%s' % (self.parent, self.name)
+            return '%s/%s' % (self.parent, self.name.encode('utf-8'))
 
-    def as_message(self):
-        return '%r [%s]' % (self, format_bytes(self.size))
+    def as_message(self, **kwargs):
+        return '%s [%s]' % (self, format_bytes(self.size))
 
     def __eq__(self, other):
         return other is not None and self.name == other.name
@@ -63,6 +64,16 @@ class File(Node):
     def __eq__(self, other):
         return self.tth == getattr(other, 'tth', None)
 
+    def as_message(self, **kwargs):
+        msg = ''
+        if kwargs.pop('magnet_enabled', False):
+            msg += ' magnet:?' + urllib.urlencode({
+                'xt': 'urn:tree:tiger:' + self.tth,
+                'xl': self.size,
+                'dn': self.name
+            })
+        return super(File, self).as_message(**kwargs) + msg
+
 
 def parse_filelist(data):
     def parse(node):
@@ -76,7 +87,7 @@ def parse_filelist(data):
     return parse(ElementTree.fromstring(data))
 
 
-def diff_filelists(old_filelist, new_filelist):
+def diff_filelists(old_filelist, new_filelist, magnet_enabled=False):
     def recursive_diff(old, new):
         if None in [old, new] or old != new or old.size == new.size:
             return set(), set()
@@ -91,5 +102,5 @@ def diff_filelists(old_filelist, new_filelist):
 
     # format as lists of strings
     deletions, additions = recursive_diff(old_filelist, new_filelist)
-    format = lambda n: n.as_message()
+    format = lambda n: n.as_message(magnet_enabled=magnet_enabled)
     return map(format, deletions), map(format, additions)
