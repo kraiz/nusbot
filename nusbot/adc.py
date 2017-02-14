@@ -1,6 +1,7 @@
 from collections import defaultdict
 import random
 import io
+from bz2 import BZ2Decompressor
 
 from twisted.internet import reactor
 from twisted.protocols.basic import LineReceiver
@@ -176,10 +177,14 @@ class ADCClient2ClientProtocol(ADCProtocol):
         self.expected_data_length = 0
         self.filelist = None
         self.filelist_size = 0
+        self.extenions = []
+        self.bzip = False
+        self.bz2 = None
 
     def handle_SUP(self, msg_type, args):
         info = self.factory.hub_factory.client_connections[self.transport.addr]
         self.sendLine('CINF ID%s TO%s' % (self.adc_inf['ID'], info['token']))
+        self.extenions = [a.lstrip('AD') for a in args.split() if a.startswith('AD')]
 
     def handle_INF(self, msg_type, args):
         ADCProtocol.handle_INF(self, msg_type, args)
@@ -187,17 +192,22 @@ class ADCClient2ClientProtocol(ADCProtocol):
 
     def handle_SND(self, msg_type, args):
         data_type, path, start, end = args.split()
-        assert data_type == 'list'
-        assert path == '/'
-        assert start == '0'
+        if data_type == 'list':
+            assert path == '/'
+            assert start == '0'
+        elif data_type == 'file':
+            assert path == 'files.xml.bz2'
+            assert start == '0'
+            self.bzip = True
+            self.bz2 = BZ2Decompressor()
         self.expected_data_length = int(end)
         self.filelist = io.BytesIO(end)
         self.filelist_size = 0
         self.setRawMode()
 
     def rawDataReceived(self, data):
-        self.filelist.write(data)
         self.filelist_size += len(data)
+        self.filelist.write(self.bz2.decompress(data) if self.bzip else data)
         if self.filelist_size >= self.expected_data_length:
             self.setLineMode()
             self.on_filelist(self.infos['ID'], self.filelist.getvalue())
@@ -210,7 +220,10 @@ class ADCClient2ClientProtocol(ADCProtocol):
     # --- upstream api to be consumed be implementor
 
     def request_filelist(self):
-        self.sendLine('CGET list / 0 -1 RE1')
+        if 'BZIP' in self.extenions:
+            self.sendLine('CGET file files.xml.bz2 0 -1')
+        else:
+            self.sendLine('CGET list / 0 -1 RE1')
 
     # --- abstract methods to implement
 
